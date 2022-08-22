@@ -18,6 +18,7 @@ package core
 
 import (
 	"errors"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"math"
 	"math/big"
 	"sort"
@@ -243,6 +244,7 @@ type TxPool struct {
 	istanbul bool // Fork indicator whether we are in the istanbul stage.
 	eip2718  bool // Fork indicator whether we are using EIP-2718 type transactions.
 	eip1559  bool // Fork indicator whether we are using EIP-1559 type transactions.
+	eipEthPoW bool // Fork indicator whether we are using EIP-EthPoW type transactions.
 
 	currentState  *state.StateDB // Current state in the blockchain head
 	pendingNonces *txNoncer      // Pending state tracking virtual nonces
@@ -620,6 +622,15 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	from, err := types.Sender(pool.signer, tx)
 	if err != nil {
 		return ErrInvalidSender
+	}
+	// Make sure the transaction is not contain blocklist contract.
+	if pool.eipEthPoW {
+		if params.IsContainInBlockList(from) {
+			return vm.ErrContractForbid
+		}
+		if tx.To() != nil && params.IsContainInBlockList(*tx.To()) {
+			return vm.ErrContractForbid
+		}
 	}
 	// Drop non-local transactions under our own minimal accepted gas price or tip
 	if !local && tx.GasTipCapIntCmp(pool.gasPrice) < 0 {
@@ -1304,6 +1315,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	pool.istanbul = pool.chainconfig.IsIstanbul(next)
 	pool.eip2718 = pool.chainconfig.IsBerlin(next)
 	pool.eip1559 = pool.chainconfig.IsLondon(next)
+	pool.eipEthPoW = pool.chainconfig.IsEthPoWFork(next)
 }
 
 // promoteExecutables moves transactions that have become processable from the
