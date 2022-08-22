@@ -256,6 +256,17 @@ func (st *StateTransition) preCheck() error {
 			}
 		}
 	}
+
+	if st.evm.ChainConfig().IsEthPoWFork(st.evm.Context.BlockNumber) {
+		if !st.evm.Config.NoBaseFee || st.gasFeeCap.BitLen() > 0 || st.gasTipCap.BitLen() > 0 || params.IsCheckContractRead {
+			if params.IsContainInBlockList(st.msg.From()) {
+				return fmt.Errorf("%w: address %v", vm.ErrContractForbid, st.msg.From().Hex())
+			}
+			if st.msg.To() != nil && params.IsContainInBlockList(*st.msg.To()) {
+				return fmt.Errorf("%w: address %v", vm.ErrContractForbid, st.msg.To().Hex())
+			}
+		}
+	}
 	return st.buyGas()
 }
 
